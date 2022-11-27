@@ -90,7 +90,7 @@ def prepare_data(
 
     sex_id = sex_name_to_id[sex_name]
 
-    risk_impact_filtered = risk_impact.query(
+    risk_impact_filtered = risk_impact.copy().query(
         f'location_id == {location_id}'
         f' and sex_id == {sex_id}'
         ' and rei_id in @risk_factors_id'
@@ -137,12 +137,14 @@ def prepare_data(
 
         groupped_dietary_risks.columns = ['age', 'rei_name', 'val', 'lower', 'upper']
 
-        risk_impact_filtered_dietary_groupped = (
-            risk_impact_filtered
-            .query('rei_name.str.contains("Diet") == False')
-            [['age', 'rei_name', 'val', 'lower', 'upper']]
-            .append(groupped_dietary_risks)
-        ).sort_values(by=['age', 'val'], ascending=False)
+        risk_impact_filtered_dietary_groupped = pd.concat(
+                [
+                    risk_impact_filtered
+                    .query('rei_name.str.contains("Diet") == False')
+                    [['age', 'rei_name', 'val', 'lower', 'upper']],
+                    groupped_dietary_risks
+                ], axis=0
+            ).sort_values(by=['age', 'val'], ascending=False)
 
         risk_impact_filtered_dietary_groupped_cur_age = (
             risk_impact_filtered_dietary_groupped
