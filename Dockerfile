@@ -1,6 +1,7 @@
 FROM python:slim-buster
 
 ENV APP_HOME /app
+ENV PORT 8080
 WORKDIR /app
 COPY . ./
 
