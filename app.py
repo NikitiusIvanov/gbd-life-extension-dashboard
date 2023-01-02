@@ -9,6 +9,10 @@ import numpy as np
 import os
 import json
 
+
+######################################################################
+# load the source data and support configurations
+
 # load risk factors impact to the life expectancy by country, age, sex
 risk_impact = pd.read_csv(
     os.path.join('data','risk_impact.csv')
@@ -19,90 +23,162 @@ life_expectancy = pd.read_csv(
     os.path.join('data','life_expectancy_calculated.csv')
 )
 
+# load risk manageable ierarchy
+risks_parents_names_manageable = pd.read_csv(
+    os.path.join('data', 'risks_parents_names_manageable.csv')
+)
+
 #load risk factors names manageable
 risks_names_manageable = pd.read_csv(
     os.path.join('data', 'risks_names_manageable.csv')
 )
-
-risks_names_manageable = list(np.concatenate(risks_names_manageable.values))
-
 
 # load risk_ierarchy and names to id mapping
 rei_ierarchy = pd.read_csv(
     os.path.join('data','rei_ierarchy.csv')
 )
 
-risk_id_to_parent_id = {int(k):int(v) for k,v in rei_ierarchy[['rei_id','parent_id']].values}
+# load mapping countries ids names and centroid coordinates
+gbd_country_name_id_iso_centroid = pd.read_csv(
+    os.path.join('data', 'gbd_country_name_id_iso_centroid.csv'),
+)
 
+# load code book with mappings names and ids entities from gbd research
 code_book = pd.read_csv(
     os.path.join('data','code_book.csv')
 ).iloc[1:, 1:]
 
+# set mapping risk manageable parent to list of their childrens
+risks_parents_names_manageable = {
+    x: [
+        y for y in 
+        risks_parents_names_manageable
+        .copy()
+        .query('rei_parent_name == @x')
+        .rei_name.unique()
+    ]
+    for x in 
+    risks_parents_names_manageable
+    .rei_parent_name
+    .unique()
+}
+
+# transform risk factors names to list
+risks_names_manageable = list(np.concatenate(risks_names_manageable.values))
+
+# set mapping risk factors ids to their parents
+risk_id_to_parent_id = {
+    int(k):int(v)
+    for k,v in rei_ierarchy[['rei_id','parent_id']].values
+}
+
+# set mapping sex names to id
 sex_name_to_id = {
     key: int(value) 
     for key, value in code_book[['sex_label', 'sex_id']].dropna().values[1:]
 }
 
+# set mapping risk factors names to id
 risks_name_to_id = {
     key: int(value) 
     for key, value in code_book[['rei_name', 'rei_id']].dropna().values
 }
 
-location_ids = [str(x) for x in risk_impact.location_id.unique()]
-
+# set mapping country name to gbd id
 location_name_to_id = {
     key: int(value) 
-    for key, value in code_book.query(
-        'location_id in @location_ids'
-    )[['location_name', 'location_id']].dropna().values
+    for key, value in 
+    gbd_country_name_id_iso_centroid[['location_name', 'location_id']].values
 }
 
-# load color map
-rei_color_map = pd.read_csv(
-    os.path.join('data', 'rei_color_map.csv')
-)
+# set mapping countries id to iso countries codes 
+gbd_id_to_iso_code_map = {
+    int(k): v for k,v in 
+    gbd_country_name_id_iso_centroid[['location_id', 'iso_code']].values
+}
 
-rei_color_map = {k[1][0]: k[1][1] for k in rei_color_map.iterrows()}
+# set mapping country id to longitude and latitude of their centroids 
+gbd_country_id_to_centroid_map = {
+    int(x[0]): [x[1], x[2]]
+    for x in 
+    gbd_country_name_id_iso_centroid
+    [['location_id', 'latitude', 'longitude']]
+    .values
+}
 
+# load risk names to color map
+rei_color_map = {
+    k:v for k,v in pd.read_csv(
+        os.path.join('data', 'rei_color_map.csv')
+    ).values
+}
+
+# set additional colors
 color_mapping = {
-    'Default life expectancy': 'rgb(50, 145, 168)',
-    'Estimated life extension': 'rgb(49, 212, 117)'
+    'Default life expectancy': {
+        'Male': 'rgba(89, 52, 235, 0.5)',
+        'Female': 'rgba(235, 52, 155, 0.5)'
+    },
+    'Estimated life extension': {
+        'Male': 'rgba(89, 52, 235, 0.9)',
+        'Female': 'rgba(235, 52, 155, 0.9)'
+    }
 }
 
+
+######################################################################
+# define the functions for data filtering and figures plotting
 def prepare_data(
     location_name: str,
     age: int,
     sex_name: int,
     risk_factors_names: list,
+    risks_parents_names_manageable: dict,
     risk_impact: pd.DataFrame,
     life_expectancy: pd.DataFrame,
     risk_id_to_parent_id: dict,
     location_name_to_id: dict,
     sex_name_to_id: dict,
     risks_name_to_id: dict,
+    gbd_id_to_iso_code_map: dict,
     dietary_risks: str='Groupped',
     round_n_decimals: int=2,
 ) -> pd.DataFrame:
 
+    ################################################
+    # get risk names from parents
+    risk_factors_names = np.concatenate([
+        risks_parents_names_manageable[x]
+        if x in risks_parents_names_manageable.keys()
+        else [x]
+        for x in risk_factors_names
+    ])
+
+    # get ids from names
     location_id = location_name_to_id[location_name]
 
     risk_factors_id = [risks_name_to_id[x] for x in risk_factors_names]
 
     sex_id = sex_name_to_id[sex_name]
 
-    risk_impact_filtered = risk_impact.copy().query(
+    ################################################
+    # filtering data by setted criteries
+    risk_impact_filtered = risk_impact.query(
         f'location_id == {location_id}'
-        f' and sex_id == {sex_id}'
         ' and rei_id in @risk_factors_id'
     )
 
     life_expectancy_filtered = life_expectancy.query(
         f'location_id == {location_id}'
-        f' and sex_id == {sex_id}'
         f' and age == {age}'
-    )[['val', 'upper', 'lower']]
+    )[['sex_id', 'val', 'upper', 'lower']]
 
-    risk_impact_filtered['rei_parent_id'] = risk_impact_filtered.copy()['rei_id'].map(risk_id_to_parent_id)
+    risk_impact_filtered['rei_parent_id'] = (
+        risk_impact_filtered
+        .copy()
+        ['rei_id']
+        .map(risk_id_to_parent_id)
+    )
 
     risk_impact_filtered['rei_name'] = (
         risk_impact_filtered.copy()['rei_id']
@@ -118,33 +194,25 @@ def prepare_data(
         f'age == {age}'
     )
 
-    extension_change_by_age = (
-        risk_impact_filtered
-        .groupby(by=['age'])
-        [['val', 'lower', 'upper',]]
-        .sum()
-        .reset_index()
-    )
-
     if dietary_risks == 'Groupped':
         groupped_dietary_risks = (
             risk_impact_filtered.query('rei_name.str.contains("Diet")')
-            .groupby(by=['age', 'rei_parent_name'])
+            .groupby(by=['sex_id', 'age', 'rei_parent_name'])
             [['val', 'lower', 'upper']]
             .sum()
             .reset_index()
         )
 
-        groupped_dietary_risks.columns = ['age', 'rei_name', 'val', 'lower', 'upper']
+        groupped_dietary_risks.columns = ['sex_id', 'age', 'rei_name', 'val', 'lower', 'upper']
 
         risk_impact_filtered_dietary_groupped = pd.concat(
-                [
-                    risk_impact_filtered
-                    .query('rei_name.str.contains("Diet") == False')
-                    [['age', 'rei_name', 'val', 'lower', 'upper']],
-                    groupped_dietary_risks
-                ], axis=0
-            ).sort_values(by=['age', 'val'], ascending=False)
+            [
+                risk_impact_filtered
+                .query('rei_name.str.contains("Diet") == False')
+                [['sex_id', 'age', 'rei_name', 'val', 'lower', 'upper']],
+                groupped_dietary_risks
+            ], axis=0,
+        ).sort_values(by=['sex_id', 'age', 'val'], ascending=False)
 
         risk_impact_filtered_dietary_groupped_cur_age = (
             risk_impact_filtered_dietary_groupped
@@ -154,564 +222,949 @@ def prepare_data(
         risk_impact_filtered_dietary_groupped = risk_impact_filtered.copy()
         risk_impact_filtered_dietary_groupped_cur_age = risk_impact_filtered_cur_age.copy()
 
-    report = pd.DataFrame(
+    ################################################
+    # create report with summary extension by sex
+    report_male = pd.DataFrame(
         {
-            'Default life expectancy': life_expectancy_filtered[['val', 'upper', 'lower']].values[0] + age,
-            'Estimated life extension': risk_impact_filtered_dietary_groupped_cur_age[['val', 'upper', 'lower',]].sum(),
+            'Default life expectancy': (
+                life_expectancy_filtered
+                .query(f'sex_id == {sex_name_to_id["Male"]}')
+                [['val', 'upper', 'lower']]
+                .values[0]
+                +
+                age
+            ),
+            'Estimated life extension': (
+                risk_impact_filtered_dietary_groupped_cur_age
+                .query(f'sex_id == {sex_name_to_id["Male"]}')
+                [['val', 'upper', 'lower',]]
+                .sum()
+            ),
         },
         index=['val', 'upper', 'lower',]
     )
 
-    report['Extended life expectancy'] = (
-        report['Default life expectancy']
+    report_male['Extended life expectancy'] = (
+        report_male['Default life expectancy']
         +
-        report['Estimated life extension']
+        report_male['Estimated life extension']
     )
-    life_expectancy_extension = round(report.loc["val","Estimated life extension"], round_n_decimals)
 
-    suptitle = (
-        f' ###### For **{sex_name}**, age: '
-        f'**{age}**, '
-        f'location: **{location_name}**'
-        f' estimated increasing of life expectancy is **{life_expectancy_extension}** years'
+    report_female = pd.DataFrame(
+        {
+            'Default life expectancy': (
+                life_expectancy_filtered
+                .query(f'sex_id == {sex_name_to_id["Female"]}')
+                [['val', 'upper', 'lower']]
+                .values[0]
+                +
+                age
+            ),
+            'Estimated life extension': (
+                risk_impact_filtered_dietary_groupped_cur_age
+                .query(f'sex_id == {sex_name_to_id["Female"]}')
+                [['val', 'upper', 'lower',]]
+                .sum()
+            ),
+        },
+        index=['val', 'upper', 'lower',]
+    )
+
+    report_female['Extended life expectancy'] = (
+        report_female['Default life expectancy']
+        +
+        report_female['Estimated life extension']
+    )
+
+    report_male['sex_name'] = 'Male'
+    report_female['sex_name'] = 'Female'
+
+    report = pd.concat([report_male, report_female])
+    report.reset_index(inplace=True)
+    report.set_index(['sex_name', 'index'], inplace=True)
+
+    ################################################
+    # create data frame with estimated extension by countries
+    risk_impact_by_countries = risk_impact.copy().query(
+        'rei_id in @risk_factors_id'
+        ' and age == @age'
+        ' and sex_id == @sex_id'
+    )
+
+    risk_impact_by_countries['iso_code'] = (
+        risk_impact_by_countries['location_id']
+        .map(gbd_id_to_iso_code_map, na_action='ignore')
+    )
+
+    # sum by risk
+    risk_impact_by_countries = (
+        risk_impact_by_countries
+        .groupby(by=['iso_code', 'location_id'])
+        [['val']].sum()
+        .reset_index()
+    )
+
+    risk_impact_by_countries['location_name'] = (
+        risk_impact_by_countries['location_id']
+        .map({v:k for k,v in location_name_to_id.items()})
+    )
+
+    risk_impact_by_countries.columns = ['iso_code', 'location_id', 'Years', 'location_name']
+    
+    ################################################
+    # calculate total extension for title
+    total_extension = round(
+        risk_impact_filtered_cur_age
+        .query(f'sex_id == @sex_id')
+        .val
+        .sum(),
+        ndigits=round_n_decimals
+    )
+
+    ################################################
+    # create suptitles for plots
+
+    life_expectancy_extension_male = round(
+        report_male.loc["val", "Estimated life extension"],
+        round_n_decimals
+    )
+
+    life_expectancy_extension_female = round(
+        report_female.loc["val", "Estimated life extension"],
+        round_n_decimals
+    )
+
+    life_expectancy_extension = {
+        'Male': life_expectancy_extension_male,
+        'Female': life_expectancy_extension_female
+    }
+
+    life_expectancy_extension_by_country_suptitle = (
+        f' ###### Distribution of extension of estimated life expectancy'
+        f' with excluding {len(risk_factors_names)} risk factors'
+        f' by {len(gbd_id_to_iso_code_map.keys())} countries,'
+        f' for **{sex_name}** aged **{age}** y.o.'
+    )
+
+    life_expectancy_extension_by_risk_suptitle = (
+        f' ###### Distribution of **{total_extension}** years'
+        f' extension of estimated life expectancy,'
+        f' by **{len(risk_factors_names)}** risk factors,'
+        f' for **{sex_name}**,'
+        f' aged **{age}** y.o.,'
+        f' in **{location_name}**'        
+    )
+
+    life_expectancy_extension_by_sex_suptitle = (
+        f' ###### Distribution of extension of estimated life expectancy by sex'
+        f' for age **{age}** y.o.,'
+        f' in **{location_name}**'        
+    )
+
+    life_expectancy_extension_by_age_suptitle = (
+        f' ###### Distribution of extension of estimated life expectancy by age,'
+        f' for **{sex_name}** in **{location_name}**'
     )
 
     return (
+        risk_impact_by_countries,
         risk_impact_filtered_cur_age.round(decimals=round_n_decimals),
-        risk_impact_filtered,
-        life_expectancy_filtered.round(decimals=round_n_decimals),
-        round(risk_impact_filtered_cur_age.val.sum(), round_n_decimals),
-        extension_change_by_age,
-        risk_impact_filtered_dietary_groupped,
-        
-        risk_impact_filtered_dietary_groupped_cur_age
-        .sort_values(by='val', ascending=False)
-        .round(decimals=round_n_decimals),
-
         report.round(decimals=round_n_decimals),
-        suptitle
+        risk_impact_filtered_dietary_groupped.query('sex_id == @sex_id'),
+        life_expectancy_extension_by_risk_suptitle,
+        life_expectancy_extension_by_sex_suptitle,
+        life_expectancy_extension_by_country_suptitle,
+        life_expectancy_extension_by_age_suptitle,
     )
 
 
-def life_expectancy_treemap_plotter(
-    risk_impact_filtered,
-    rei_color_map,
+def life_expectancy_extension_by_country_plotter(
+    risk_impact_by_countries: pd.DataFrame,
+    gbd_country_id_to_centroid_map,
+    location_name_to_id,
+    location_name,
+    total_extension,
 ) -> go.Figure:
+
+    fig = px.choropleth(
+        risk_impact_by_countries,
+        locations="iso_code",
+        color="Years",
+        hover_name="location_name",
+        title = "",
+        color_continuous_scale=px.colors.sequential.YlGnBu
+    )
+
+    fig.update_layout(
+        geo=dict(
+            showframe=False,
+            showcoastlines=False,
+            projection_type='natural earth',
+        ),
+        height=400,
+        margin = dict(t=0, l=0, r=0, b=0),
+        coloraxis=dict(
+            colorbar=dict(
+                orientation='h',
+                thickness=12,
+                title=dict(
+                    text='Years of life expectancy extension',
+                    font=dict(size=12)
+                ),
+                tickfont=dict(size=12),
+                len=0.6,
+                xanchor='center',
+                x=0.5,
+                y=1.1,
+                xpad=2,
+                ypad=2
+            ),
+        ),
+    )
+    fig["layout"].pop("updatemenus")
+
+    fig.add_trace(
+        go.Scattergeo(
+            lat=[gbd_country_id_to_centroid_map[
+                location_name_to_id[location_name]
+            ][0]],
+            lon=[gbd_country_id_to_centroid_map[
+                location_name_to_id[location_name]
+            ][1]],
+            mode='markers+text',
+            marker=dict(
+                size=7,
+                color='white'
+            ),
+            text=[f'<b>{location_name}<br>{total_extension} years</b>'],
+            textfont=dict(
+                color='white',
+                size=10.1,
+            ),
+            textposition='top center',
+            hoverinfo='skip',
+            showlegend=False,
+        )
+    )
+
+    fig.add_trace(
+        go.Scattergeo(
+            lat=[gbd_country_id_to_centroid_map[
+                location_name_to_id[location_name]
+            ][0]],
+            lon=[gbd_country_id_to_centroid_map[
+                location_name_to_id[location_name]
+            ][1]],
+            mode='markers+text',
+            marker=dict(
+                size=6,
+                color='red'
+            ),
+            text=[f'<b>{location_name}<br>{total_extension} years</b>'],
+            textfont=dict(
+                color='red',
+                size=10,
+            ),
+            textposition='top center',
+            hoverinfo='skip',
+            showlegend=False,
+        )
+    )
+
+    return fig
+
+
+def life_expectancy_extension_by_risk_plotter(
+    risk_impact_filtered: pd.DataFrame,
+    rei_color_map: dict,
+    sex_name: str,
+    sex_name_to_id: dict,
+) -> go.Figure:
+    sex_id = sex_name_to_id[sex_name]
     fig = px.treemap(
-        risk_impact_filtered, path=[px.Constant("All selected risks"), 'rei_parent_name', 'rei_name'],
+        risk_impact_filtered.query('sex_id == @sex_id'),
+        path=[px.Constant("All selected risks"), 'rei_parent_name', 'rei_name'],
         values='val',
         color='rei_name',
         color_discrete_map=rei_color_map,
-        template='plotly_white'
+        template='plotly_white',
     )
 
-    fig.update_traces(root_color="lightgrey")
+    fig.update_traces(
+        root_color="lightgrey",
+        hovertemplate='Excluding <b>%{label}</b>,<br> give esitmated life extension:<br> <b>%{value}</b> years'
+    )
     fig.update_layout(margin = dict(t=0, l=0, r=0, b=0))
 
     fig.data[0].textinfo = "label+value+percent root"
 
-    fig.update_layout(height=400, width=300)
+    labels = fig.data[0]['labels']
+    colors = [
+        rei_color_map[x]
+        if x in rei_color_map.keys() else '#d3e7e8'
+        for x in labels
+    ]
 
-    return fig
-
-
-def life_expectancy_extension_all_ages_plotter(
-    extension_change_by_age,
-    age,
-    risk_impact_filtered_dietary_groupped,
-    risk_impact_filtered_dietary_groupped_cur_age,
-    rei_color_map,
-    width: float=0.7
-) -> go.Figure:
-    extension_change_by_age = extension_change_by_age.query('age >= @age')
-    risk_impact_filtered_dietary_groupped = risk_impact_filtered_dietary_groupped.query('age >= @age')
-    risk_impact_filtered_dietary_groupped_cur_age = risk_impact_filtered_dietary_groupped_cur_age.query('age >= @age')
-
-    max_extension_by_age = risk_impact_filtered_dietary_groupped.groupby(by=['age']).val.sum().max()
-
-    fig = make_subplots()
-
-    fig.add_trace(
-        go.Scatter(
-            x=extension_change_by_age.age.values,
-            y=extension_change_by_age.val.values,
-            line=dict(color=color_mapping['Estimated life extension']),
-            name='Total',
-            showlegend=True
-        ),
-    )
-    
-    risk_impact_filtered_dietary_groupped
-
-    for i, cur_age in enumerate(risk_impact_filtered_dietary_groupped.age.unique()):
-
-        for rei_name in risk_impact_filtered_dietary_groupped_cur_age.rei_name:
-            try:
-                extension = risk_impact_filtered_dietary_groupped.query('age == @cur_age and rei_name == @rei_name').val.values[0]
-            except:
-                extension = 0
-
-            fig.add_trace(
-                go.Bar(
-                    x=[cur_age],
-                    y=[extension],
-                    orientation='v',
-                    marker_color=rei_color_map[rei_name],
-                    width=width,
-                    name=rei_name,
-                    legendgroup=rei_name,
-                    showlegend=True if i == 0 else False
-                ),
-            )
+    fig.data[0]['marker']['colors'] = np.array(colors)
 
     fig.update_layout(
-        barmode='stack',
-        template='plotly_white',
-        xaxis1=dict(
-            title='Age(years)',           
-            tickvals=list(
-                range(risk_impact_filtered_dietary_groupped.age.min(), risk_impact_filtered_dietary_groupped.age.max(), 5))
-            ),
-        yaxis=dict(
-            title='Life expectancy extension (years)',
-            range=(0, max_extension_by_age + 0.4)
-        ),
-        height=300,
-        margin=dict(l=0, r=0, t=0, b=0)
+        height=350,
     )
 
     return fig
 
 
-def life_expectancy_extension_plotter(
-    risk_impact_filtered_dietary_groupped_cur_age,
-    report,
-    rei_color_map,
-    age,
-    width: float=0.6
+def life_expectancy_extension_by_sex_plotter(
+    report: pd.DataFrame,
+    age: int,
+    color_mapping: dict,
+    width: float=0.4
 ) -> go.Figure:
-    default_le = report.loc['val', 'Default life expectancy']
-    default_le_lower = report.loc['lower', 'Default life expectancy']
-    default_le_upper = report.loc['upper', 'Default life expectancy']
 
-    extended_le = report.loc['val', 'Extended life expectancy']
-    extended_le_lower = report.loc['lower', 'Extended life expectancy']
-    extended_le_upper = report.loc['upper', 'Extended life expectancy']
+    x_data = {
+        sex_name: {
+            'Default life expectancy': report.loc[sex_name].loc['val', 'Default life expectancy'],
+            'Estimated life extension': report.loc[sex_name].loc['val', 'Estimated life extension']
+        }    for sex_name in ['Male', 'Female']
+    }
 
-    fig = make_subplots(
-        y_title='Age',
-        subplot_titles=[],
+    le_error = {
+        sex_name: {
+            'upper': (
+                report.loc[sex_name].loc['upper', 'Estimated life extension']
+                -
+                report.loc[sex_name].loc['val', 'Estimated life extension']),
+            'lower': (
+                report.loc[sex_name].loc['val', 'Estimated life extension']
+                -
+                report.loc[sex_name].loc['lower', 'Estimated life extension']),
+        } for sex_name in ['Male', 'Female']
+    }
+
+    maximum_le = max(
+        [
+            report.loc[sex_name].loc['upper', 'Extended life expectancy']
+            for sex_name in ['Male', 'Female']
+        ]
     )
+    
+    report = round(report.copy(), 1)
 
-    fig.add_trace(
-            go.Bar(
-                x=['Extended life expectancy'],
-                y=[default_le],
-                width=width,
-                marker_color=color_mapping['Default life expectancy'],
-                name='Default life expectancy',
-                showlegend=False,
-                legendgroup='Estimated life expectancy without risk factors'
+    fig = go.Figure()
+
+    for sex_name in ['Female', 'Male']:
+
+        percent_extension = round(
+            100 * (
+                report.loc[sex_name].loc['val', 'Estimated life extension']
+                /
+                report.loc[sex_name].loc['val', 'Default life expectancy']
             ),
+            1
         )
 
-    for rei_name in risk_impact_filtered_dietary_groupped_cur_age.rei_name.values[:-1]:
+        percent_default = 100 - percent_extension
 
         fig.add_trace(
             go.Bar(
-                x=['Extended life expectancy'],
-                y=[risk_impact_filtered_dietary_groupped_cur_age.query('rei_name == @rei_name').val.values[0]],
+                y=[x_data[sex_name]['Default life expectancy']],
+                x=[sex_name],
+                orientation='v',
+                marker=dict(
+                    color=color_mapping['Default life expectancy'][sex_name],
+                    line=dict(width=1)
+                ),
+                text=(
+                    f"{report.loc[sex_name].loc['val', 'Default life expectancy']}"
+                    f"<br>({percent_default} %)"
+                    #f"<br> Default life expectancy"
+                ),
+                textfont=dict(color='white'),
+                insidetextanchor='end',
+                hovertemplate='Default life expectancy<br> is: %{y} years',
+                name=f'{sex_name} default life expectancy',
                 width=width,
-                marker_color=rei_color_map[rei_name],
-                name=rei_name,
-            ),
+                legendgroup=sex_name,
+                showlegend=True
+            )
         )
 
-    rei_name = risk_impact_filtered_dietary_groupped_cur_age.rei_name.values[-1]
-
-    fig.add_trace(
+        fig.add_trace(
             go.Bar(
-                x=['Extended life expectancy'],
-                y=[risk_impact_filtered_dietary_groupped_cur_age.query('rei_name == @rei_name').val.values[0]],
+                y=[x_data[sex_name]['Estimated life extension']],
+                x=[sex_name],
                 error_y=dict(
                     type='data',
                     symmetric=False,
-                    array=[(
-                        extended_le_upper
-                        - 
-                        extended_le
-                    )],
-                    arrayminus=[(
-                        extended_le
-                        - 
-                        extended_le_lower
-                    )]
+                    array=[le_error[sex_name]['upper']],
+                    arrayminus=[le_error[sex_name]['lower']]
                 ),
-                width=width,
-                name='Estimated life expectancy excluded risk factors',
-                legendgroup='Estimated life expectancy excluded risk factors',
-                showlegend=False,
-            ),
-        )
-    fig.add_trace(
-            go.Bar(
-                x=['Default life expectancy'],
-                y=[report.loc['val', 'Default life expectancy']],
-                error_y=dict(
-                    type='data',
-                    symmetric=False,
-                    array=[(
-                        default_le_upper
-                        - 
-                        default_le
-                    )],
-                    arrayminus=[(
-                        default_le
-                        - 
-                        default_le_lower
-                    )]
+                orientation='v',
+                marker=dict(
+                    color=color_mapping['Estimated life extension'][sex_name],
+                    line=dict(width=1)
                 ),
+                text=(
+                    f"{report.loc[sex_name].loc['val', 'Estimated life extension']}"
+                    f"<br>({percent_extension} %)"
+                    #f"<br>Estimated life extension"
+                ),
+                textfont=dict(color='white'),
+                textposition = "inside",
+                insidetextanchor='middle',
+                hovertemplate='Extension of life expectancy<br> is: %{y} years',
+                name=f'{sex_name} extension',
                 width=width,
-                marker_color=color_mapping['Default life expectancy'],
-                name='Default life expectancy with risk factors',
-                showlegend=False,
-            ),
+                legendgroup=sex_name,
+                showlegend=True
+            )
         )
-
-    fig.add_annotation(
-        y=extended_le,
-        x='Extended life expectancy',
-        text=(
-            f'<b>{round(extended_le, 1)}</b>,<br>'
-            f' 95% CI {round(extended_le_lower, 1), round(extended_le_upper, 1)}'
-        ),
-        showarrow=True,
-        arrowwidth=1,
-        arrowside='end',
-        arrowhead=5,
-        ay=-40,
-        align='center',
-        standoff=20,    
-    )
-
-    fig.add_annotation(
-        y=default_le,
-        x='Default life expectancy',
-        text=(
-            f'<b>{round(default_le, 1)}</b>,<br>'
-            f' 95% CI {round(default_le_lower, 1), round(default_le_upper, 1)}'
-        ),
-        showarrow=True,
-        arrowwidth=1,
-        arrowside='end',
-        arrowhead=5,
-        ay=-40,
-        align='center',
-        standoff=20,  
-    )
-
 
     fig.update_layout(
-        height=400,
-        width=600,
-        barmode='stack',
         template='plotly_white',
+        height=300,
         yaxis=dict(
-            range=(age, int(report.max().max() // 1) + 10),
-            tickvals=list(range(age, int(report.max().max() // 1) + 2, 2))
+                range=(age, int(maximum_le // 1 + 1)),
+                tickvals=list(range(age, int(maximum_le // 1 + 1), 5)),
+                zeroline=False,
+                showgrid=False,
+                showline=False,
+                domain=[0.15, 1],
+                title='Life expectancy (Years)'
+            ),
+        xaxis=dict(
+            showgrid=False,
+            showline=False,
+            showticklabels=False,
+            zeroline=False,
         ),
-        margin=dict(l=0, r=0, t=0, b=0),
-        legend=dict(title='Exluded risk factors:', traceorder='normal', y=0.9)
+        legend=dict(
+            y=0.1,
+            orientation="h"
+        ),
+        barmode='stack',
+        bargap=0.001,
+        showlegend=True,
+        margin=dict(l=0, r=0, t=0, b=10),
     )
 
     return fig
 
 
+def life_expectancy_extension_by_age_plotter(
+    risk_impact_filtered_dietary_groupped: pd.DataFrame,
+    rei_color_map: dict,
+    age: int,
+):
+
+    age_arr = np.sort(risk_impact_filtered_dietary_groupped.age.unique())
+
+    rei_sorted_by_val_sum = (
+        risk_impact_filtered_dietary_groupped
+        .groupby(by='rei_name')['val']
+        .sum()
+        .sort_values(ascending=False)
+        .index
+    )
+    
+    fig = go.Figure()
+
+    y = np.array([0 for _ in risk_impact_filtered_dietary_groupped.age.unique()], dtype='float64')
+
+    for rei_name in rei_sorted_by_val_sum:
+
+        cur_y = np.array(
+            risk_impact_filtered_dietary_groupped
+            .query(
+                'rei_name == @rei_name'
+            )
+            .sort_values(by='age')
+            ['val'].values,
+            dtype='float64'
+        )
+
+        y += cur_y
+
+        fig.add_trace(
+            go.Scatter(
+                customdata=cur_y,
+                x=age_arr,
+                y=y,
+                line=dict(
+                    width=0.1,
+                    color=rei_color_map[rei_name]
+                ),
+                fill='tonexty',
+                hovertemplate =(
+                    f'{rei_name}, '
+                    'age: %{x:}, extension: %{customdata:.2f}<extra></extra>'
+                ),
+                hoverinfo=None,
+                name=rei_name
+            )
+        )
+
+    cur_age_y = (
+        risk_impact_filtered_dietary_groupped
+        .query(
+            'age == @age'
+        )
+        .set_index('rei_name').loc[rei_sorted_by_val_sum, :]
+        ['val']
+        .cumsum()
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=[age] * (len(cur_age_y.values) + 1),
+            y=[0] + list(cur_age_y.values),
+            mode='lines+markers',
+            marker=dict(
+                color=[rei_color_map[rei_name] for rei_name in cur_age_y.index],
+                size=5,
+            ),
+            line=dict(
+                width=0.3,
+                color='red'
+            ),
+            hoverinfo='skip',
+            showlegend=False,
+        )
+    )
+
+
+    fig.update_layout(
+        template='plotly_white',
+        xaxis=dict(
+            showgrid=False,
+            showline=False,
+            zeroline=False,
+            title='Age(years)',
+            tickvals=list(
+                range(
+                    risk_impact_filtered_dietary_groupped.age.min(),
+                    risk_impact_filtered_dietary_groupped.age.max(),
+                    5
+                )
+            )
+        ),
+        yaxis=dict(
+            showgrid=False,
+            showline=False,
+            zeroline=False,
+            title='Life expectancy extension (years)',
+        ),
+        height=300,
+        margin=dict(l=0, r=0, t=0, b=10)  
+    )
+
+    return fig
+
+######################################################################
+# create the plotly dash application
 app = Dash(__name__, external_stylesheets=[dbc.themes.LITERA])
-
-# create filters
-controls_risk = dbc.Card(
-    [
-        html.Div(
-            [
-                dbc.Label("Excluded risk factors"),
-                html.Br(),
-                dcc.Checklist(
-                    id="risks_names_manageable",
-                    options=risks_names_manageable,
-                    value=risks_names_manageable
-                ),
-            ]
-        ),
-    ],
-    body=True,
-)
-
-controls_location_sex_age_dietary = dbc.Card(
-    [
-        html.Div(
-            [
-                dbc.Label("Location"),
-                dcc.Dropdown(
-                    id="location_name",
-                    options=list(location_name_to_id.keys()),
-                    value='United States of America',
-                    searchable=True,
-                ),
-            ]
-        ),
-        html.Div(
-            [
-                dbc.Label("Sex"),
-                dcc.Dropdown(
-                    id="sex_name",
-                    options=['Male', 'Female'],
-                    value='Male',
-                ),
-            ]
-        ),
-        html.Div(
-            [
-                dbc.Label("Age years"),
-                html.Br(),
-                dcc.Dropdown(
-                    id="age",
-                    options=list(range(0, 110, 1)),
-                    value=42,
-                ),
-            ]
-        ),
-        html.Div(
-            [
-                dbc.Label("Dietary risks"),
-                html.Br(),
-                dcc.Dropdown(
-                    id="dietary_risks",
-                    options=['Groupped', 'Detailed'],
-                    value='Groupped',
-                    searchable=True,
-                ),
-            ]
-        ),
-    ],
-    body=True,
-)
 
 # setup layout
 app.layout = dbc.Container(
     [
-        html.Br(),
-        html.H2(
-            children='Estimation the increase of life expectancy with the exclusion of risk factors'
+        dbc.Navbar(
+            [
+                dbc.Col(
+                    [
+                        dbc.Label("Country"),
+                        dcc.Dropdown(
+                            id="location_name",
+                            options=list(location_name_to_id.keys()),
+                            value='United States of America',
+                            searchable=True,
+                        ),
+                    ],
+                    width=2,
+                    style={
+                        "margin-left": "40px",
+                        "padding": "10px",
+                        "font-weight": "700"
+                    }
+                ),
+                dbc.Col(
+                    [
+                        dbc.Label("Sex"),
+                        dcc.Dropdown(
+                            id="sex_name",
+                            options=['Male', 'Female'],
+                            value='Male',
+                        ),
+                    ],
+                    width=1,
+                    style={
+                        "padding": "10px",
+                        "font-weight": "700"
+                    }
+                ),
+                dbc.Col(
+                    [
+                        dbc.Label("Age in years"),
+                        dcc.Dropdown(
+                            id="age",
+                            options=list(range(0, 110, 1)),
+                            value=42,
+                        ),
+                    ],
+                    width=1,
+                    style={
+                        "padding": "10px",
+                        "font-weight": "700"
+                    }
+                ),
+                dbc.Col(
+                    [
+                        dbc.Label(
+                            "Check risk factors for exclude",
+                            style={"margin-left": "20px"},
+                        ),
+                        dcc.Checklist(
+                            id="risks_names_manageable",
+                            options=risks_names_manageable,
+                            value=risks_names_manageable,
+                            inline=True,
+                            inputStyle={"margin-left": "20px"},
+                        ),
+                    ],
+                    style={
+                        "padding": "10px",
+                        "font-weight": "700",
+                    }
+                )
+            ],
+            color='#d3e7e8',
+            fixed='top',
         ),
         html.Br(),
-        dcc.Markdown(
-            id='suptitle',
+        html.Br(),
+        html.Br(),
+        html.Br(),
+        dbc.Row(
+            [
+                html.H1(
+                    children=(
+                        'Estimate extension of life expectancy'
+                        ' by excluding manageable risk factors'
+                    ),
+                    style={
+                    "margin-top":"20px",
+                    "font-size": "30px"
+                    }
+                ),
+                html.Details(
+                    [
+                        html.Summary(children='About data source and results'),
+                        html.P(
+                            children=(                                
+                            [
+                                'This dashboard visualize results of estimation change in '
+                                ' life expectancy years in case exclusion from population deaths mortality attributed'
+                                ' to the different manageable risk factors.'
+                                ' Results contains sex-age related estimations for 26 risk factors in 204 countries.'
+                                ' Sorce data for calculation was taken'
+                                ' from https://vizhub.healthdata.org/gbd-results/ '
+                                '(2019 Global Burden of Disease (GBD) study).',
+                                html.Br(),
+                                'Estimation process include:',
+                                html.Br(),
+                                ' * Interpolation source data from 5-years group to 1 year group.',
+                                html.Br(),
+                                ' * Calculation of contribution each risk factor to the mortality using risk-attributed mortality.',
+                                html.Br(),
+                                ' * Calculation life tables with exclusion from mortality the contribution of each risk factor.',
+                                html.Br(),
+                                ' * Calculation difference in life expectancy with exclulsion rick-contributed mortality.',
+                                html.Br(),
+                                ' All processes of data transformations published on author github repository.'
+                            ]
+                            )
+                        )
+                    ]                    
+                ),
+            ]
+        ),
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        html.Br(),
+                        dcc.Markdown(
+                            id='life_expectancy_extension_by_country_suptitle',
+                        ),
+                        dcc.Graph(
+                            id="life_expectancy_extension_by_country",
+                            config={
+                                'displaylogo': False,
+                                'displayModeBar': False,
+                                'editSelection': False,
+                                'editable': False,
+                            },
+                        )
+                    ],
+                    width=7
+                ),
+                dbc.Col(
+                    [                           
+                        html.Br(),
+                        dcc.Markdown(
+                            id='life_expectancy_extension_by_risk_suptitle',
+                        ),
+                        html.Br(),
+                        dcc.Graph(
+                            id="life_expectancy_extension_by_risk",
+                            config={
+                                'displaylogo': False,
+                                'displayModeBar': False,
+                                'editSelection': False,
+                                'editable': False,
+                            },
+                            animate=True,
+                        ),
+                    ],
+                    width=5
+                )
+            ]
         ),
         html.Br(),
         dbc.Row(
             [
                 dbc.Col(
                     [
-                        controls_location_sex_age_dietary,
-                        controls_risk
+                        dcc.Markdown(
+                            id='life_expectancy_extension_by_sex_suptitle',
+                        ),
+                        html.Br(),
+                        dcc.Graph(
+                            id="life_expectancy_extension_by_sex",
+                                config={
+                                    'displaylogo': False,
+                                    'displayModeBar': False,
+                                    'editSelection': False,
+                                    'editable': False,
+                                },
+                                animate=True,
+                        )
                     ],
-                    md=3,
+                    width=5
                 ),
                 dbc.Col(
                     [
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    [
-                                        dcc.Graph(
-                                            id="life_expectancy_treemap",
-                                                config={
-                                                    'displayModeBar': False,                                
-                                                },
-                                                animate=True,
-                                        )
-                                    ]
-                                ),                                
-                                dbc.Col(
-                                    [
-                                        dcc.Graph(
-                                            id="life_expectancy_extension",
-                                                config={
-                                                    'displayModeBar': False,                                
-                                                },
-                                                animate=True,
-                                        )
-                                    ]
-                                )
-                            ]
+                        dcc.Markdown(
+                            id='life_expectancy_extension_by_age_suptitle',
                         ),
                         html.Br(),
-                        html.H6(
-                            children='Change of extension life expectancy by age',
-                        ),
                         dcc.Graph(
-                            id="life_expectancy_extension_all_ages",
+                            id="life_expectancy_extension_by_age",
                             config={
-                                'displayModeBar': False
+                                'displaylogo': False,
+                                'displayModeBar': False,
+                                'editSelection': False,
+                                'editable': False,
                             },
                             animate=True,
                         )
                     ],
-                    md=9
+                    width=7
                 )
             ]
         ),
+        html.Br(),
+        html.Br(),
         html.Div([dcc.Store(id='preprocessed_data')])
-    ]
+    ],
 )
 
 # setup the callback function for update plots
 @app.callback(    
-    Output(component_id='suptitle', component_property='children'),
+    Output(component_id='life_expectancy_extension_by_risk_suptitle', component_property='children'),
+    Output(component_id='life_expectancy_extension_by_sex_suptitle', component_property='children'),
+    Output(component_id='life_expectancy_extension_by_country_suptitle', component_property='children'),
+    Output(component_id='life_expectancy_extension_by_age_suptitle', component_property='children'),
     Output(component_id='preprocessed_data', component_property='data'),
     Input(component_id='location_name', component_property='value'),
     Input(component_id='sex_name', component_property='value'),
     Input(component_id='age', component_property='value'),
     Input(component_id='risks_names_manageable', component_property='value'),
-    Input(component_id='dietary_risks', component_property='value'),
 )
 def update_data(
     location_name,
     sex_name,
     age,
     risks_names_manageable,
-    dietary_risks,
 ):
 
     (
-        risk_impact_filtered,
-        risk_impact_filtered_all_ages,
-        life_expectancy_filtered,
-        total_extension,
-        extension_change_by_age,
-        risk_impact_filtered_dietary_groupped,
-        risk_impact_filtered_dietary_groupped_cur_age,
-        report,
-        suptitle,
+        risk_impact_by_countries, # for plot distribution by country
+        risk_impact_filtered_cur_age, # for plot distribution by risk
+        report, # for plot distribution by sex
+        risk_impact_filtered_dietary_groupped, # for plot distribution by age
+        life_expectancy_extension_by_risk_suptitle,
+        life_expectancy_extension_by_sex_suptitle,
+        life_expectancy_extension_by_country_suptitle,
+        life_expectancy_extension_by_age_suptitle,
     ) = prepare_data(
         location_name=location_name,
         age=age,
         sex_name=sex_name,
         risk_factors_names=risks_names_manageable,
+        risks_parents_names_manageable=risks_parents_names_manageable,
         risk_impact=risk_impact,
         life_expectancy=life_expectancy,
         risk_id_to_parent_id=risk_id_to_parent_id,
         location_name_to_id=location_name_to_id,
         sex_name_to_id=sex_name_to_id,
         risks_name_to_id=risks_name_to_id,
-        round_n_decimals=1,
-        dietary_risks=dietary_risks
+        gbd_id_to_iso_code_map=gbd_id_to_iso_code_map,
+        round_n_decimals=1
     )
 
     preprocessed_data = {
-        'risk_impact_filtered': risk_impact_filtered.to_json(orient='split', date_format='iso'),
-        'risk_impact_filtered_all_ages': risk_impact_filtered_all_ages.to_json(orient='split', date_format='iso'),
-        'life_expectancy_filtered': life_expectancy_filtered.to_json(orient='split', date_format='iso'),
-        'extension_change_by_age': extension_change_by_age.to_json(orient='split', date_format='iso'),
-        'risk_impact_filtered_dietary_groupped': risk_impact_filtered_dietary_groupped.to_json(orient='split', date_format='iso'),
-        'risk_impact_filtered_dietary_groupped_cur_age': risk_impact_filtered_dietary_groupped_cur_age.to_json(orient='split', date_format='iso'),
-        'report': report.to_json(orient='split', date_format='iso'),
+        'risk_impact_by_countries': (
+            risk_impact_by_countries
+            .to_json(orient='split', date_format='iso')
+        ),
+        'risk_impact_filtered_dietary_groupped': (
+            risk_impact_filtered_dietary_groupped
+            .to_json(orient='split', date_format='iso')
+        ),
+        'risk_impact_filtered_cur_age': (
+            risk_impact_filtered_cur_age
+            .to_json(orient='split', date_format='iso')
+        ),
+        'report': (
+            report
+            .reset_index()
+            .to_json(orient='split', date_format='iso')
+        ),
+        'risk_impact_by_countries': (
+            risk_impact_by_countries
+            .to_json(orient='split', date_format='iso')
+        ),
     }
 
-
-    return suptitle, json.dumps(preprocessed_data)
-
-@app.callback(  
-    Output(component_id='life_expectancy_treemap', component_property='figure'),
-    Input(component_id='preprocessed_data', component_property='data'),
-)
-def update_life_expectancy_treemap(preprocessed_data):
-    preprocessed_data = json.loads(preprocessed_data)
-    risk_impact_filtered = pd.read_json(
-        preprocessed_data['risk_impact_filtered'],
-        orient='split'
+    return (
+        life_expectancy_extension_by_risk_suptitle,
+        life_expectancy_extension_by_sex_suptitle,
+        life_expectancy_extension_by_country_suptitle,
+        life_expectancy_extension_by_age_suptitle,
+        json.dumps(preprocessed_data)
     )
 
-    life_expectancy_treemap = life_expectancy_treemap_plotter(
-        risk_impact_filtered=risk_impact_filtered,
-        rei_color_map=rei_color_map
-    )
-
-    return life_expectancy_treemap
-
-@app.callback(  
-    Output(component_id='life_expectancy_extension', component_property='figure'), 
+@app.callback(
+    Output(component_id='life_expectancy_extension_by_country', component_property='figure'),
     Input(component_id='preprocessed_data', component_property='data'),
-    Input(component_id='age', component_property='value'),
+    Input(component_id='location_name', component_property='value'),
+    Input(component_id='sex_name', component_property='value'),
 )
-def update_life_expectancy_extension(
-    preprocessed_data,
-    age,
+
+def update_life_expectancy_extension_by_country(
+    preprocessed_data: json,
+    location_name: str,
+    sex_name: str,
 ):
     preprocessed_data = json.loads(preprocessed_data)
-    
-    risk_impact_filtered_dietary_groupped_cur_age = pd.read_json(
-        preprocessed_data['risk_impact_filtered_dietary_groupped_cur_age'],
+
+    risk_impact_by_countries = pd.read_json(
+        preprocessed_data['risk_impact_by_countries'],
         orient='split'
     )
 
     report = pd.read_json(
         preprocessed_data['report'],
         orient='split'
+    ).set_index(['sex_name', 'index'])
+
+    total_extension = report.loc[sex_name].loc['val', 'Estimated life extension']
+
+    life_expectancy_extension_by_country = life_expectancy_extension_by_country_plotter(
+        risk_impact_by_countries=risk_impact_by_countries,
+        gbd_country_id_to_centroid_map=gbd_country_id_to_centroid_map,
+        location_name_to_id=location_name_to_id,
+        location_name=location_name,
+        total_extension=total_extension,
     )
 
-    life_expectancy_extension = life_expectancy_extension_plotter(
-        risk_impact_filtered_dietary_groupped_cur_age=risk_impact_filtered_dietary_groupped_cur_age,
-        report=report,
-        age=age,
+    return life_expectancy_extension_by_country
+
+#@app.callback(
+#    Output(component_id='click_country_name', component_property='children'),
+#    Input(component_id='life_expectancy_extension_by_country', component_property='clickData'))
+#def update_click_country_name(clickData):
+#    return clickData["points"][0]["hovertext"]
+
+
+@app.callback(  
+    Output(component_id='life_expectancy_extension_by_risk', component_property='figure'),
+    Input(component_id='sex_name', component_property='value'),
+    Input(component_id='preprocessed_data', component_property='data'),
+)
+def update_life_expectancy_extension_by_risk(sex_name, preprocessed_data):
+    preprocessed_data = json.loads(preprocessed_data)
+    risk_impact_filtered_cur_age = pd.read_json(
+        preprocessed_data['risk_impact_filtered_cur_age'],
+        orient='split'
+    )
+
+    life_expectancy_extension_by_risk = life_expectancy_extension_by_risk_plotter(
+        risk_impact_filtered=risk_impact_filtered_cur_age,
         rei_color_map=rei_color_map,
-        width=0.7
+        sex_name=sex_name,
+        sex_name_to_id=sex_name_to_id,
     )
 
-    return life_expectancy_extension
+    return life_expectancy_extension_by_risk
 
-@app.callback(   
-    Output(component_id='life_expectancy_extension_all_ages', component_property='figure'),
+@app.callback(  
+    Output(component_id='life_expectancy_extension_by_sex', component_property='figure'), 
     Input(component_id='preprocessed_data', component_property='data'),
     Input(component_id='age', component_property='value'),
 )
-def update_life_expectancy_extension_all_ages(
+def update_life_expectancy_extension_by_sex(
+    preprocessed_data,
+    age,
+):
+    preprocessed_data = json.loads(preprocessed_data)    
+
+    report = pd.read_json(
+        preprocessed_data['report'],
+        orient='split'
+    ).set_index(['sex_name', 'index'])
+
+    life_expectancy_extension_by_sex = life_expectancy_extension_by_sex_plotter(
+        report,
+        age,
+        color_mapping,
+    )
+
+    return life_expectancy_extension_by_sex
+
+@app.callback(   
+    Output(component_id='life_expectancy_extension_by_age', component_property='figure'),
+    Input(component_id='preprocessed_data', component_property='data'),
+    Input(component_id='age', component_property='value'),
+)
+def update_life_expectancy_extension_by_age(
     preprocessed_data,
     age,
 ):
     preprocessed_data = json.loads(preprocessed_data)
-
-    extension_change_by_age = pd.read_json(
-        preprocessed_data['extension_change_by_age'],
-        orient='split'
-    )
 
     risk_impact_filtered_dietary_groupped = pd.read_json(
         preprocessed_data['risk_impact_filtered_dietary_groupped'],
         orient='split'
     )
 
-    risk_impact_filtered_dietary_groupped_cur_age = pd.read_json(
-        preprocessed_data['risk_impact_filtered_dietary_groupped_cur_age'],
-        orient='split'
-    )
-
-    report = pd.read_json(
-        preprocessed_data['report'],
-        orient='split'
-    )
-
-    life_expectancy_extension_all_ages = life_expectancy_extension_all_ages_plotter(
-        extension_change_by_age=extension_change_by_age,
-        age=age,
+    life_expectancy_extension_by_age = life_expectancy_extension_by_age_plotter(
         risk_impact_filtered_dietary_groupped=risk_impact_filtered_dietary_groupped,
-        risk_impact_filtered_dietary_groupped_cur_age=risk_impact_filtered_dietary_groupped_cur_age,
         rei_color_map=rei_color_map,
-        width=0.7
+        age=age,
     )
 
-    return life_expectancy_extension_all_ages
+    return life_expectancy_extension_by_age
 
 if __name__ == '__main__':
     app.run_server(debug=True, use_reloader=False, host='0.0.0.0', port=8080)
