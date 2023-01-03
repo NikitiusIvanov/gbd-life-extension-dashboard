@@ -764,6 +764,8 @@ def life_expectancy_extension_by_age_plotter(
 ######################################################################
 # create the plotly dash application
 app = Dash(__name__, external_stylesheets=[dbc.themes.LITERA])
+app.title = 'Life expectancy extension with risk factors excluding'
+app._favicon = (os.path.join("assets", "favicon.ico"))
 
 # setup layout
 app.layout = dbc.Container(
@@ -867,25 +869,150 @@ app.layout = dbc.Container(
                                 ' to the different manageable risk factors.'
                                 ' Results contains sex-age related estimations for 26 risk factors in 204 countries.'
                                 ' Sorce data for calculation was taken'
-                                ' from https://vizhub.healthdata.org/gbd-results/ '
-                                '(2019 Global Burden of Disease (GBD) study).',
+                                ' from ', dcc.Link(
+                                    '2019 Global Burden of Disease (GBD) study.',
+                                    href='https://vizhub.healthdata.org/gbd-results/',
+                                ),
+                                html.Br(),
                                 html.Br(),
                                 'Estimation process include:',
+                                html.Li('Interpolation source data from 5-years group to 1 year group.'),
+                                html.Li('Calculation of contribution each risk factor to the mortality using risk-attributed mortality.'),
+                                html.Li('Calculation life tables with exclusion from mortality the contribution of each risk factor.'),
+                                html.Li('Calculation difference in life expectancy with exclulsion rick-contributed mortality.'),
                                 html.Br(),
-                                ' * Interpolation source data from 5-years group to 1 year group.',
-                                html.Br(),
-                                ' * Calculation of contribution each risk factor to the mortality using risk-attributed mortality.',
-                                html.Br(),
-                                ' * Calculation life tables with exclusion from mortality the contribution of each risk factor.',
-                                html.Br(),
-                                ' * Calculation difference in life expectancy with exclulsion rick-contributed mortality.',
-                                html.Br(),
-                                ' All processes of data transformations published on author github repository.'
+                                ' All processes of data transformations published on author github repository ', dcc.Link(
+                                    'https://github.com/NikitiusIvanov/gbd-life-extension-dashboard',
+                                    href='https://github.com/NikitiusIvanov/gbd-life-extension-dashboard',
+                                ),
                             ]
                             )
                         )
                     ]                    
                 ),
+                html.Br(),
+                html.Details(
+                    [
+                        html.Summary(children='Risk factors definitions'),
+                        html.P(
+                            children=(                                
+                            [
+                                html.B('Alcohol use.'),' We define current drinkers as individuals consuming at least one alcoholic beverage in the past year.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Drug use.'),' Apart from drug use disorder estimates, '
+                                'the drug use risk factor includes the risk of suicide in prevalent '
+                                'cases of opioid, amphetamine,and cocaine use disorders, and the cumulative '
+                                'incidence of blood-borne infections due to current and past injection drug use (IDU).',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Low physical activity.'), ' Low physical activity was measured in total metabolic equivalent (MET)'
+                                ' minutes and was defined as average weekly physical activity (at work, home, transport related,'
+                                ' and recreational) of less than 3000–4500 MET min per week.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Unsafe sex.'), ' Unsafe sex is defined as the risk of disease due to sexual transmission. '
+                                'Unsafe sex includes 100% of cervical cancer and STIs apartfrom those congenitally acquired'
+                                ', and a fraction of HIV based on data reporting the proportion of HIV incidence through sexual transmission.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('High body-mass index.'), '  High BMI for adults (age ≥20 years) is defined as BMI greater than 20–25 kg/m². High '
+                                'BMI for children (ages 1–19 years) is defined as being overweight or obese based on '
+                                'International Obesity Task Force standards.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('High LDL cholesterol.'), ' We estimated blood concentration of LDL in units of mmol/L.'
+                                ' We used a TMREL with a uniform distribution between 0·7 and 1·3 mmol/L.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('High fasting plasma glucose.'), ' High fasting plasma glucose is defined as serum'
+                                ' fasting plasma glucose greater than 4·8–5·4 mmol/L.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Smoking.'), ' Smoking is defined as current daily or occasional use of any smoked tobacco product.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Secondhand smoke.'), ' This risk factor refers to current exposure to secondhand tobacco'
+                                ' smoke at home, at work, or in other public places. Only non-daily smokers are'
+                                ' considered to be exposed to secondhand smoke.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Chewing tobacco.'), ' Current chewing tobacco use is defined as current daily or'
+                                ' occasional use of chewing tobacco, including local products such as betel quid with tobacco.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Diet high in sodium.'), ' Diet high in sodium is defined as average 24-h urinary'
+                                ' sodium excretion (in grams per day) greater than 3 g.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Diet high in processed meat.'), ' Diet high in processed meat is defined as any intake'
+                                ' (in grams per day) of meat preserved by smoking, curing, salting, or addition of chemical preservatives.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Diet low in polyunsaturated fatty acids.'), ' Diet low in PUFAs is defined as average daily consumption'
+                                ' (in percentage daily energy) of less than 7–9% total energy intake from PUFAs.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Diet high in red meat.'), ' Diet high in red meat is defined as any intake (in grams per day)'
+                                ' of red meat including beef, pork, lamb, and goat but excluding poultry, fish, eggs, and all processed meats.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Diet high in trans fatty acids.'), ' Diet high in red meat is defined as any intake (in grams per day)'
+                                ' of red meat including beef, pork, lamb, and goat but excluding poultry, fish, eggs, and all processed meats.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Diet low in vegetables.'), ' Diet low in vegetables is defined as average consumption (in grams per day)'
+                                ' of less than 280–320 g of vegetables, including fresh, frozen, cooked, canned, or dried'
+                                ' vegetables and excluding legumes, salted or pickled vegetables, juices, nuts and seeds,'
+                                ' and starchy vegetables (eg, potatoes).',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Diet high in sugar-sweetened beverages.'), ' Diet high in sugar-sweetened beverages'
+                                ' is defined as any intake (in grams per day) of beverages with at least 50 kcal'
+                                ' per 226·8-g serving, including carbonated beverages, sodas, energy drinks,'
+                                ' and fruit drinks, but excluding 100% fruit and vegetable juices.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Diet low in calcium.'), ' Diet low in calcium is defined as average daily consumption'
+                                ' (in grams per day) of less than 1·06–1·10 g of calcium from all sources, including milk, yoghurt, and cheese.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Diet low in fiber.'), ' Diet low in fibre is defined as average daily consumption (in grams per day)'
+                                ' of less than 21–22 g of fibre from all sources including fruits, vegetables, grains, legumes, and pulses.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Diet low in legumes.'), ' Diet low in legumes is defined as average daily consumption (in grams per day)'
+                                ' of less than of 90–100 g of legumes and pulses, including fresh, frozen, cooked, canned, or dried legumes.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Diet low in nuts and seeds.'), ' Diet low in nuts and seeds is defined as average daily consumption'
+                                ' (in grams per day) of less than 10–19 g of nuts and seeds, including tree nuts and seeds and peanuts.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Diet low in seafood omega-3 fatty acids.'), ' Diet low in omega-3 fatty acids is defined as average'
+                                ' daily consumption (in milligrams per day) of less than 430–470 mg of eicosapentaenoic acid and docosahexaenoic acid.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Diet low in fruits.'), ' Diet low in fruit is defined as average daily consumption (in grams per day) of less'
+                                ' than 310–340 g of fruit including fresh, frozen, cooked, canned, or dried fruit,'
+                                ' excluding fruit juices and salted or pickled fruits.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Diet low in milk.'), ' Diet low in milk is defined as average daily consumption (in grams per day)'
+                                ' of less than 360–500 g of milk including non-fat, lowfat, and full-fat milk and'
+                                ' excluding soy milk and other plant derivatives.',
+                                html.Br(),
+                                html.Br(),
+                                html.B('Diet low in whole grains.'), ' Diet low in whole grains is defined as average daily consumption '
+                                '(in grams per day) of less than 140–160 g of whole grains (bran, germ, and endosperm'
+                                ' in their natural proportion) from breakfast cereals, bread, rice, pasta, biscuits, '
+                                'muffins, tortillas, pancakes, and other sources.',
+                                html.Br(),
+                            ]
+                            )
+                        )
+                    ]                    
+                )
             ]
         ),
         dbc.Row(
@@ -1168,5 +1295,5 @@ def update_life_expectancy_extension_by_age(
     return life_expectancy_extension_by_age
 
 if __name__ == '__main__':
-    app.run_server(debug=True, use_reloader=False, host='0.0.0.0', port=8080)
+    app.run_server(debug=False, use_reloader=False, host='0.0.0.0', port=8080)
     
