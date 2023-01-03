@@ -11,4 +11,4 @@ In this project we are using following stack:
     * Docker - to application contenirization
     * Google cloud Run - to application deploy
 
-![Demo gif](https://github.com/NikitiusIvanov/gbd-life-extension-dashboard/blob/main/demo.gif)
+![Demo gif](https://github.com/NikitiusIvanov/gbd-life-extension-dashboard/blob/main/demo_2023_01_03.gif)
