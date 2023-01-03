@@ -749,6 +749,7 @@ def life_expectancy_extension_by_age_plotter(
             )
         ),
         yaxis=dict(
+            range=(0, risk_impact_filtered_dietary_groupped.groupby(by='age')['val'].sum().max() * 1.05),
             showgrid=False,
             showline=False,
             zeroline=False,
