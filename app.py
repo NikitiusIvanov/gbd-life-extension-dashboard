@@ -405,20 +405,20 @@ def life_expectancy_extension_by_country_plotter(
         margin = dict(t=0, l=0, r=0, b=0),
         coloraxis=dict(
             colorbar=dict(
-                orientation='h',
+                orientation='v',
                 thickness=12,
-                title=dict(
-                    text='Years of life expectancy extension',
-                    font=dict(size=12)
-                ),
+                #title=dict(
+                #    text='Years of life expectancy extension',
+                #    font=dict(size=12),
+                #),
                 tickfont=dict(size=12),
-                len=0.6,
-                xanchor='center',
-                x=0.5,
-                y=1.1,
-                xpad=2,
-                ypad=2
-            ),
+                len=0.8,
+                yanchor='middle',
+                #x=-0.1,
+                #y=0,
+                #xpad=2,
+                #ypad=2
+            )
         ),
     )
     fig["layout"].pop("updatemenus")
@@ -622,7 +622,7 @@ def life_expectancy_extension_by_sex_plotter(
 
     fig.update_layout(
         template='plotly_white',
-        height=300,
+        height=350,
         yaxis=dict(
                 range=(age, int(maximum_le // 1 + 1)),
                 tickvals=list(range(age, int(maximum_le // 1 + 1), 5)),
@@ -735,6 +735,7 @@ def life_expectancy_extension_by_age_plotter(
 
     fig.update_layout(
         template='plotly_white',
+        height=350,
         xaxis=dict(
             showgrid=False,
             showline=False,
@@ -755,8 +756,11 @@ def life_expectancy_extension_by_age_plotter(
             zeroline=False,
             title='Life expectancy extension (years)',
         ),
-        height=300,
-        margin=dict(l=0, r=0, t=0, b=10)  
+        legend=dict(
+            orientation="h",
+            y=-0.2,
+        ),
+        margin=dict(l=0, r=0, t=0, b=0)  
     )
 
     return fig
@@ -774,6 +778,24 @@ app.layout = dbc.Container(
             [
                 dbc.Col(
                     [
+                        html.H1(
+                            children=(
+                                'Estimate extension of life expectancy'
+                                ' by excluding manageable risk factors'
+                            ),
+                            style={
+                                "text-align": "center",
+                                "align-items": "center",
+                                "margin-top":"5px",
+                                "padding": "5px",
+                                "font-size": "20px"
+                            }
+                        )
+                    ],
+                    xs=12, sm=12, md=3, lg=3, xl=3,
+                ),
+                dbc.Col(
+                    [
                         dbc.Label("Country"),
                         dcc.Dropdown(
                             id="location_name",
@@ -782,10 +804,10 @@ app.layout = dbc.Container(
                             searchable=True,
                         ),
                     ],
-                    width=2,
+                    xs=6, sm=6, md=2, lg=2, xl=2,
                     style={
-                        "margin-left": "40px",
-                        "padding": "10px",
+                        "align-items": "center",
+                        "padding": "5px",
                         "font-weight": "700"
                     }
                 ),
@@ -798,24 +820,24 @@ app.layout = dbc.Container(
                             value='Male',
                         ),
                     ],
-                    width=1,
+                    xs=3, sm=3, md=1, lg=1, xl=1,
                     style={
-                        "padding": "10px",
+                        "padding": "5px",
                         "font-weight": "700"
                     }
                 ),
                 dbc.Col(
                     [
-                        dbc.Label("Age in years"),
+                        dbc.Label("Age y.o."),
                         dcc.Dropdown(
                             id="age",
                             options=list(range(0, 110, 1)),
                             value=42,
                         ),
                     ],
-                    width=1,
+                    xs=3, sm=3, md=1, lg=1, xl=1,
                     style={
-                        "padding": "10px",
+                        "padding": "5px",
                         "font-weight": "700"
                     }
                 ),
@@ -830,11 +852,12 @@ app.layout = dbc.Container(
                             options=risks_names_manageable,
                             value=risks_names_manageable,
                             inline=True,
-                            inputStyle={"margin-left": "20px"},
+                            inputStyle={"margin-left": "5px"},
                         ),
                     ],
+                    xs=12, sm=12, md=5, lg=5, xl=5,
                     style={
-                        "padding": "10px",
+                        "padding": "5px",
                         "font-weight": "700",
                     }
                 )
@@ -842,22 +865,39 @@ app.layout = dbc.Container(
             color='#d3e7e8',
             fixed='top',
         ),
-        html.Br(),
-        html.Br(),
-        html.Br(),
-        html.Br(),
         dbc.Row(
             [
-                html.H1(
-                    children=(
-                        'Estimate extension of life expectancy'
-                        ' by excluding manageable risk factors'
-                    ),
-                    style={
-                    "margin-top":"20px",
-                    "font-size": "30px"
-                    }
+                dbc.Col(
+                    [
+                        html.Br(),
+                        html.Br(),
+                        html.Br(),
+                        html.Br(),
+                        html.Br(),
+                    ],
+                    xs=12, sm=12, md=4, lg=4, xl=4,
                 ),
+                dbc.Col(
+                    [
+                        html.Br(),
+                        html.Br(),
+                        html.Br(),
+                        html.Br(),
+                        html.Br(),
+                    ],
+                    xs=12, sm=12, md=4, lg=4, xl=4,
+                ),
+                dbc.Col(
+                    [
+                        html.Br(),
+                        html.Br(),
+                    ],
+                    xs=12, sm=12, md=4, lg=4, xl=4,
+                )
+            ]
+        ),
+        dbc.Row(
+            [
                 html.Details(
                     [
                         html.Summary(children='About data source and results'),
@@ -1033,7 +1073,7 @@ app.layout = dbc.Container(
                             },
                         )
                     ],
-                    width=7
+                    xs=12, sm=12, md=7, lg=7, xl=7,
                 ),
                 dbc.Col(
                     [                           
@@ -1053,7 +1093,7 @@ app.layout = dbc.Container(
                             animate=True,
                         ),
                     ],
-                    width=5
+                    xs=12, sm=12, md=5, lg=5, xl=5,
                 )
             ]
         ),
@@ -1077,7 +1117,7 @@ app.layout = dbc.Container(
                                 animate=True,
                         )
                     ],
-                    width=5
+                    xs=12, sm=12, md=5, lg=5, xl=5,
                 ),
                 dbc.Col(
                     [
@@ -1096,7 +1136,7 @@ app.layout = dbc.Container(
                             animate=True,
                         )
                     ],
-                    width=7
+                    xs=12, sm=12, md=7, lg=7, xl=7,
                 )
             ]
         ),
