@@ -919,7 +919,7 @@ app.layout = dbc.Container(
                                 html.Li('Interpolation source data from 5-years group to 1 year group.'),
                                 html.Li('Calculation of contribution each risk factor to the mortality using risk-attributed mortality.'),
                                 html.Li('Calculation life tables with exclusion from mortality the contribution of each risk factor.'),
-                                html.Li('Calculation difference in life expectancy with exclulsion rick-contributed mortality.'),
+                                html.Li('Calculation difference in life expectancy with exclulsion risk-contributed mortality.'),
                                 html.Br(),
                                 ' All processes of data transformations published on author github repository ', dcc.Link(
                                     'https://github.com/NikitiusIvanov/gbd-life-extension-dashboard',
