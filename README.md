@@ -1,5 +1,7 @@
 # Interactive dashboard to visualize estimated age-sex specific life expectancy extension with eliminated deaths attributed to 26 manageable risk factors for 204 countries
 
+Live demo serverless deployed on  Google cloud Run: https://gbd-life-extension-dashboard-3oyids3kha-uc.a.run.app/
+
 * All data kindly provided by Global Burden of Disease Study 2019 - https://vizhub.healthdata.org/gbd-results/
 * Jupyter notebook with data preprocessing - https://github.com/NikitiusIvanov/gbd-life-extension-dashboard/blob/main/preprocessing_all_countries.ipynb
 * Jupyter notebook witn calculation impact of risk factors into life expectancy - https://github.com/NikitiusIvanov/gbd-life-extension-dashboard/blob/main/life_expectancy_extension_estimation_all_countries.ipynb
